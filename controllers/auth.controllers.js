@@ -1,13 +1,14 @@
 import User from "../models/user.schema.js";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 export const Register = async (req, res) => {
   try {
     console.log(req.body, " req.body");
-    const { name, email, password, confirmPassword } = req.body.userData;
-    console.log(name, email, password, confirmPassword);
+    const { name, email, password, confirmPassword, role } = req.body.userData;
+    console.log(name, email, password, confirmPassword, role);
 
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !password || !confirmPassword || !role) {
       return res.json({ success: false, message: "All data mandatory," });
     }
     if (password !== confirmPassword) {
@@ -33,11 +34,12 @@ export const Register = async (req, res) => {
       name: name,
       email: email,
       password: hashedPassword,
+      role: role,
     });
     console.log(newUser, "newUser");
     const responseFromDatabase = await newUser.save();
     console.log(responseFromDatabase, "responseFromDatabase");
-    return res.json({ success: true, message: "Registreration complted." });
+    return res.json({ success: true, message: "Registeration Completed." });
   } catch (error) {
     console.log(error, "error in register api call.");
     return res.json({ success: false, error: error });
@@ -69,12 +71,54 @@ export const Login = async (req, res) => {
     if (!isPasswordCorrect) {
       return res.json({ success: false, message: "Password is wrong." });
     }
+    const jwtToken = jwt.sign(
+      { userId: isUserExists._id },
+      process.env.TOKENSECRETKEY
+    );
+    console.log(jwtToken, "jwtToken");
+
     return res.json({
       success: true,
-      message: "Login successfull.",
+       message: "Login successfull.",
       userData: {
-        user: { name: isUserExists.name, phone: isUserExists.phone },
-        token: "abc",
+        user: {
+          userId: isUserExists._id,
+          name: isUserExists.name,
+          phone: isUserExists.phone,
+          role: isUserExists.role,
+        },
+        token: jwtToken,
+      },
+    });
+  } catch (error) {
+    console.log(error, "error in register api call.");
+    return res.json({ success: false, error: error });
+  }
+};
+
+export const getCurrentUser = async (req, res) => {
+  try {
+    const { token } = req.body; // string -> data , userId
+    if (!token) {
+      return res.json({ success: false });
+    }
+    const tokenData = jwt.verify(token, process.env.TOKENSECRETKEY);
+    if (!tokenData) {
+      return res.json({ success: false });
+    }
+    const isUserExists = await User.findById(tokenData.userId);
+    if (!isUserExists) {
+      return res.json({ success: false });
+    }
+    return res.json({
+      success: true,
+      userData: {
+        user: {
+          userId: isUserExists._id,
+          name: isUserExists.name,
+          phone: isUserExists.phone,
+          role: isUserExists.role,
+        },
       },
     });
   } catch (error) {
